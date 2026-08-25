@@ -3,113 +3,137 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#080808" />
-  <title>SharpEdge — AI Sports Picks</title>
-  <meta name="description" content="Live sports dashboards, confidence-rated picks, saved slips, and performance tracking." />
+  <meta name="theme-color" content="#050505" />
+  <title>SharpEdge — Find Your Edge</title>
+  <meta name="description" content="SharpEdge live sports dashboards, confidence-rated picks, saved slips, analysis, and Pro tools." />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="#top" aria-label="SharpEdge home">
-      <span class="blade" aria-hidden="true">S</span>
-      <span>SHARP<span>EDGE</span></span>
+  <aside class="sidebar" aria-label="Primary navigation">
+    <a class="brand brand-side" href="#top" aria-label="SharpEdge home">
+      <svg class="logo-mark" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff1a4"/><stop offset=".34" stop-color="#ffcb2f"/><stop offset=".72" stop-color="#c77b00"/><stop offset="1" stop-color="#fff0a0"/></linearGradient></defs>
+        <path fill="url(#gold)" d="M91 9 42 17 15 44l20 19-20 33 52-10 39-35-22-17 7-25Zm-42 22 28-5-24 20 20 7-11 10-29 6 13-21-13-10 16-7Z"/>
+      </svg>
+      <span class="brand-name">SHARP<span>EDGE</span></span>
+      <small>FIND YOUR EDGE.</small>
     </a>
-    <nav>
-      <button class="nav-btn active" data-view="dashboard">Dashboard</button>
-      <button class="nav-btn" data-view="saved">Saved <span id="savedCount" class="badge">0</span></button>
-      <button class="nav-btn" data-view="pro">Pro</button>
-      <button id="authButton" class="nav-btn auth-btn">Sign in</button>
+
+    <nav class="side-nav">
+      <button class="nav-btn active" data-view="dashboard"><span>⌂</span>Dashboard</button>
+      <button class="nav-btn" data-view="live"><span>◉</span>Live Scores</button>
+      <button class="nav-btn" data-view="picks"><span>◎</span>Picks</button>
+      <button class="nav-btn" data-view="parlays"><span>≋</span>Parlays</button>
+      <button class="nav-btn" data-view="odds"><span>↕</span>Odds Center</button>
+      <button class="nav-btn" data-view="analysis"><span>▥</span>Analysis Hub</button>
+      <button class="nav-btn" data-view="leaders"><span>♕</span>Leaders</button>
+      <button class="nav-btn" data-view="saved"><span>☆</span>Favorites <b id="savedCount" class="badge">0</b></button>
+      <button class="nav-btn" data-view="news"><span>▤</span>News Feed</button>
     </nav>
-  </header>
 
-  <main id="top">
-    <section id="dashboardView" class="view active-view">
-      <section class="hero">
-        <div>
-          <p class="eyebrow">LIVE DATA • SMARTER DECISIONS</p>
-          <h1>Find your <span>edge.</span></h1>
-          <p class="hero-copy">Live scoreboards plus data-driven pick signals across the biggest U.S. sports.</p>
-          <div class="hero-actions">
-            <button id="refreshBtn" class="primary">Refresh live games</button>
-            <span id="lastUpdated" class="muted">Waiting for live data…</span>
+    <section class="sidebar-pro">
+      <span class="crown">♛</span>
+      <strong>SHARPEDGE <em>PRO</em></strong>
+      <p>Unlock advanced analysis, tools, and premium features.</p>
+      <button class="nav-btn pro-side" data-view="pro">UPGRADE NOW</button>
+    </section>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="mobile-brand">
+        <svg class="logo-mark mini" viewBox="0 0 120 120" aria-hidden="true"><path fill="#f5b700" d="M91 9 42 17 15 44l20 19-20 33 52-10 39-35-22-17 7-25Zm-42 22 28-5-24 20 20 7-11 10-29 6 13-21-13-10 16-7Z"/></svg>
+        <span>SHARP<span>EDGE</span></span>
+      </div>
+      <div class="operator-card">
+        <span class="operator-crown">♛</span>
+        <div><strong>SLiiK</strong><small>C.O. (Chief Operator)</small></div>
+        <em>“We don’t guess. We read the game.”</em>
+      </div>
+      <div class="top-actions">
+        <button class="nav-btn pro-pill" data-view="pro">♛ PRO</button>
+        <button id="authButton" class="nav-btn auth-btn">Sign in</button>
+      </div>
+    </header>
+
+    <nav class="quick-nav" aria-label="Quick navigation">
+      <button class="nav-btn active" data-view="dashboard">⌂<span>Dashboard</span></button>
+      <button class="nav-btn" data-view="live">◉<span>Live</span></button>
+      <button class="nav-btn" data-view="picks">◎<span>Picks</span></button>
+      <button class="nav-btn" data-view="parlays">≋<span>Parlays</span></button>
+      <button class="nav-btn" data-view="leaders">♕<span>Leaders</span></button>
+      <button class="nav-btn" data-view="analysis">▥<span>Analysis</span></button>
+      <button class="nav-btn" data-view="odds">↕<span>Odds</span></button>
+      <button class="nav-btn" data-view="news">▤<span>News</span></button>
+    </nav>
+
+    <main id="top">
+      <section id="dashboardView" class="view active-view">
+        <section class="hero hero-elite">
+          <div class="hero-content">
+            <p class="eyebrow">LIVE DATA • SMARTER DECISIONS</p>
+            <h1>FIND YOUR <span>EDGE.</span></h1>
+            <p class="hero-copy">Live scoreboards plus data-driven pick signals across the biggest U.S. sports.</p>
+            <div class="hero-actions">
+              <button id="refreshBtn" class="primary">REFRESH LIVE GAMES <span>↻</span></button>
+              <span class="live-dot"></span><span id="lastUpdated" class="muted">Waiting for live data…</span>
+            </div>
           </div>
-        </div>
-        <div class="edge-card">
-          <div class="edge-ring"><strong id="topConfidence">—</strong><span>TOP EDGE</span></div>
-          <p id="topPickText">Live picks will appear here.</p>
-        </div>
+          <div class="hero-visual">
+            <div class="helmet-mark">S</div>
+            <div class="gold-flare"></div>
+          </div>
+        </section>
+
+        <section class="metric-grid">
+          <article><span class="metric-icon">↗</span><strong id="topConfidence">—</strong><small>TOP EDGE</small><p>Win signal</p></article>
+          <article><span class="metric-icon">+$</span><strong>+14.6U</strong><small>PROFIT</small><p>Demo tracker</p></article>
+          <article><span class="metric-icon">#</span><strong id="signalsTracked">0</strong><small>SAVED PICKS</small><p>Your board</p></article>
+          <article><span class="metric-icon">%</span><strong id="avgConfidence">—</strong><small>AVG CONFIDENCE</small><p>Loaded board</p></article>
+          <article><span class="metric-icon">★</span><strong>4.8</strong><small>APP RATING</small><p>Target experience</p></article>
+        </section>
+
+        <section class="league-tabs" aria-label="Sports">
+          <button class="league active" data-league="nfl">NFL</button>
+          <button class="league" data-league="nba">NBA</button>
+          <button class="league" data-league="mlb">MLB</button>
+          <button class="league" data-league="nhl">NHL</button>
+          <button class="league" data-league="ncaaf">NCAAF</button>
+        </section>
+
+        <section class="section-head"><div><p class="eyebrow">LIVE GAMES</p><h2 id="leagueTitle">NFL Games</h2></div><div id="statusPill" class="status-pill">Loading</div></section>
+        <section id="gamesGrid" class="games-grid" aria-live="polite"></section>
+
+        <section class="dashboard-bottom">
+          <article class="message-card">
+            <p class="eyebrow">C.O. MESSAGE</p>
+            <h3>Discipline. Data. Dedication.</h3>
+            <p>That’s the SharpEdge way.</p>
+            <strong>— SLiiK</strong>
+          </article>
+          <article class="performance-card"><p class="eyebrow">THIS WEEK'S PERFORMANCE</p><div class="sparkline">⌁⌁╱⌁╱╲╱╲╱╱</div><strong>+8.3U</strong><small>Demo performance tracker</small></article>
+          <article class="alerts-card"><p class="eyebrow">UPCOMING ALERTS</p><ul><li>NBA injury report</li><li>NFL line movement</li><li>MLB starting pitchers</li></ul></article>
+        </section>
       </section>
 
-      <section class="league-tabs" aria-label="Sports">
-        <button class="league active" data-league="nfl">NFL</button>
-        <button class="league" data-league="nba">NBA</button>
-        <button class="league" data-league="mlb">MLB</button>
-        <button class="league" data-league="nhl">NHL</button>
-        <button class="league" data-league="ncaaf">NCAAF</button>
-      </section>
+      <section id="liveView" class="view"><section class="page-title"><p class="eyebrow">LIVE CENTER</p><h1>Scores in motion.</h1><p>Use the league tabs on Dashboard to load the latest live boards.</p></section><div class="feature-panel"><h2>Live Score Center</h2><p>SharpEdge pulls current scoreboard data for NFL, NBA, MLB, NHL and NCAAF. Return to Dashboard to switch leagues and refresh the feed.</p><button class="primary jump-dashboard">Open live dashboard</button></div></section>
+      <section id="picksView" class="view"><section class="page-title"><p class="eyebrow">TOP PICKS</p><h1>Best current signals.</h1><p>Confidence-rated signals are generated from the current live board.</p></section><div id="picksBoard" class="tool-grid"></div></section>
+      <section id="parlaysView" class="view"><section class="page-title"><p class="eyebrow">PARLAY LAB</p><h1>Build your card.</h1><p>Use saved picks to organize a watchlist. SharpEdge does not guarantee outcomes.</p></section><div class="feature-panel"><h2>Saved-pick parlay board</h2><div id="parlayBoard"></div><button class="primary nav-btn" data-view="saved">View saved picks</button></div></section>
+      <section id="oddsView" class="view"><section class="page-title"><p class="eyebrow">ODDS CENTER</p><h1>Market context.</h1><p>When the live feed includes a market line, SharpEdge uses it as one input to the signal.</p></section><div id="oddsBoard" class="tool-grid"></div></section>
+      <section id="analysisView" class="view"><section class="page-title"><p class="eyebrow">ANALYSIS HUB</p><h1>Read the game.</h1><p>See confidence, matchup notes, and model reasoning from the loaded board.</p></section><div id="analysisBoard" class="tool-grid"></div></section>
+      <section id="leadersView" class="view"><section class="page-title"><p class="eyebrow">EDGE LEADERS</p><h1>Highest-confidence board.</h1><p>Ranked from the current league feed.</p></section><div id="leadersBoard" class="leader-list"></div></section>
+      <section id="newsView" class="view"><section class="page-title"><p class="eyebrow">NEWS FEED</p><h1>What to watch.</h1><p>A clean workspace for injury updates, line movement, starting lineups, and game-day notes.</p></section><div class="tool-grid"><article class="tool-card"><b>Injuries</b><p>Confirm official injury reports before relying on any signal.</p></article><article class="tool-card"><b>Line Movement</b><p>Compare the current market with the number used when a pick was generated.</p></article><article class="tool-card"><b>Starting Lineups</b><p>Late lineup changes can materially change a matchup.</p></article></div></section>
 
-      <section class="section-head">
-        <div><p class="eyebrow">TODAY'S BOARD</p><h2 id="leagueTitle">NFL Games</h2></div>
-        <div id="statusPill" class="status-pill">Loading</div>
-      </section>
+      <section id="savedView" class="view"><section class="page-title"><p class="eyebrow">YOUR BOARD</p><h1>Saved picks.</h1><p>Build a personal watchlist before you place any wager.</p></section><div id="savedList" class="saved-list"></div></section>
+      <section id="proView" class="view"><section class="page-title"><p class="eyebrow">SHARPEDGE PRO</p><h1>MAXIMIZE YOUR EDGE.</h1><p id="proStatus">Sign in and subscribe to unlock Pro features.</p></section><section class="pricing-card"><div><span class="pro-chip">♛ PRO</span><h2>$19.99<span>/month</span></h2><p>Premium tools for users who want deeper context, saved history, and advanced analysis.</p></div><ul><li>Expanded matchup analysis</li><li>Advanced stats & tools</li><li>Parlay workspace</li><li>Saved-pick history</li><li>Priority feature access</li></ul><button id="proButton" class="primary full">Subscribe with Stripe</button><small>Subscription status is verified through Stripe and your SharpEdge account.</small></section></section>
+    </main>
 
-      <section id="gamesGrid" class="games-grid" aria-live="polite"></section>
+    <footer><div class="brand"><svg class="logo-mark mini" viewBox="0 0 120 120"><path fill="#f5b700" d="M91 9 42 17 15 44l20 19-20 33 52-10 39-35-22-17 7-25Zm-42 22 28-5-24 20 20 7-11 10-29 6 13-21-13-10 16-7Z"/></svg><span>SHARP<span>EDGE</span></span></div><p>SharpEdge provides informational analysis only. No pick is guaranteed. If you choose to wager, use licensed operators and bet responsibly.</p><strong>SLiiK • C.O.</strong></footer>
+  </div>
 
-      <section class="performance">
-        <div class="section-head"><div><p class="eyebrow">TRACK RECORD</p><h2>SharpEdge performance</h2></div></div>
-        <div class="stats-grid">
-          <article><span>Signals tracked</span><strong id="signalsTracked">0</strong><small>Stored on this device</small></article>
-          <article><span>Average confidence</span><strong id="avgConfidence">—</strong><small>Current loaded board</small></article>
-          <article><span>Live leagues</span><strong>5</strong><small>NFL • NBA • MLB • NHL • NCAAF</small></article>
-        </div>
-      </section>
-    </section>
+  <template id="gameTemplate"><article class="game-card"><div class="game-top"><span class="game-time"></span><span class="live-tag"></span></div><div class="matchup"></div><div class="score-row"></div><div class="pick-box"><div><span class="pick-label">SHARPEDGE SIGNAL</span><strong class="pick-text"></strong></div><div class="confidence"></div></div><p class="reason"></p><button class="save-btn">☆ Save pick</button></article></template>
 
-    <section id="savedView" class="view">
-      <section class="page-title"><p class="eyebrow">YOUR BOARD</p><h1>Saved picks</h1><p>Build a personal watchlist before you place any wager.</p></section>
-      <div id="savedList" class="saved-list"></div>
-    </section>
-
-    <section id="proView" class="view">
-      <section class="page-title"><p class="eyebrow">SHARPEDGE PRO</p><h1>Unlock deeper analysis.</h1><p>Pro is prepared for subscription billing, but checkout must be connected to your Stripe account before charging customers.</p></section>
-      <section class="pricing-card">
-        <div><span class="pro-chip">PRO</span><h2>$19.99<span>/month</span></h2><p>Designed for advanced users who want more context, filters, and model detail.</p></div>
-        <ul><li>Higher-detail matchup analysis</li><li>Expanded confidence breakdowns</li><li>Saved-pick history</li><li>Priority feature access</li></ul>
-        <button id="proButton" class="primary full">Stripe connection required</button>
-        <small>No payment will be collected in this build.</small>
-      </section>
-    </section>
-  </main>
-
-  <footer>
-    <div class="brand"><span class="blade">S</span><span>SHARP<span>EDGE</span></span></div>
-    <p>SharpEdge provides informational analysis only. No pick is guaranteed. If you choose to wager, use licensed operators and bet responsibly.</p>
-  </footer>
-
-  <template id="gameTemplate">
-    <article class="game-card">
-      <div class="game-top"><span class="game-time"></span><span class="live-tag"></span></div>
-      <div class="matchup"></div>
-      <div class="score-row"></div>
-      <div class="pick-box"><div><span class="pick-label">SHARPEDGE SIGNAL</span><strong class="pick-text"></strong></div><div class="confidence"></div></div>
-      <p class="reason"></p>
-      <button class="save-btn">Save pick</button>
-    </article>
-  </template>
-
-  <dialog id="authDialog" class="auth-dialog">
-    <form method="dialog" class="auth-card" id="authForm">
-      <button class="dialog-close" value="cancel" aria-label="Close">×</button>
-      <p class="eyebrow">SHARPEDGE ACCOUNT</p>
-      <h2 id="authTitle">Sign in</h2>
-      <p class="muted">Save your SharpEdge account across devices.</p>
-      <label>Email<input id="authEmail" type="email" autocomplete="email" required></label>
-      <label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required></label>
-      <button id="authSubmit" class="primary full" type="submit">Sign in</button>
-      <button id="authModeToggle" class="text-btn" type="button">Need an account? Create one</button>
-      <p id="authMessage" class="auth-message" role="status"></p>
-    </form>
-  </dialog>
+  <dialog id="authDialog" class="auth-dialog"><form method="dialog" class="auth-card" id="authForm"><button class="dialog-close" value="cancel" aria-label="Close">×</button><p class="eyebrow">SHARPEDGE ACCOUNT</p><h2 id="authTitle">Sign in</h2><p class="muted">Sync your SharpEdge account across devices.</p><label>Email<input id="authEmail" type="email" autocomplete="email" required></label><label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required></label><button id="authSubmit" class="primary full" type="submit">Sign in</button><button id="authModeToggle" class="text-btn" type="button">Need an account? Create one</button><p id="authMessage" class="auth-message" role="status"></p></form></dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
