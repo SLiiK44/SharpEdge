@@ -1,428 +1,385 @@
-const ESPN_ENDPOINTS = {
-  nfl: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
-  nba: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
-  mlb: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
-  nhl: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard",
-  ncaaf: "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard"
+/* SHARPEDGE V2 — GAME BOARD */
+
+const LEAGUES = {
+  nfl: ["football", "nfl"],
+  nba: ["basketball", "nba"],
+  mlb: ["baseball", "mlb"],
+  nhl: ["hockey", "nhl"],
+  ncaaf: ["football", "college-football"],
+  ncaab: ["basketball", "mens-college-basketball"]
 };
 
 const state = {
-  allGames: [],
-  upcomingGames: [],
-  liveGames: [],
-  selectedSport: "all"
+  games: [],
+  sport: "all",
+  day: "today"
 };
 
-const $ = (selector) => document.querySelector(selector);
-const $$ = (selector) => [...document.querySelectorAll(selector)];
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
 
-function safeText(value, fallback = "") {
-  return value ?? fallback;
+function dateKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}${m}${d}`;
 }
 
-function formatGameTime(dateString) {
-  if (!dateString) return "TBD";
+function localDay(date) {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
 
-  const date = new Date(dateString);
+function relativeDate(offset) {
+  const d = new Date();
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() + offset);
+  return d;
+}
 
-  if (Number.isNaN(date.getTime())) return "TBD";
+function sameDay(a, b) {
+  return localDay(a) === localDay(b);
+}
 
+function formatTime(date) {
   return new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit"
-  }).format(date);
+  }).format(new Date(date));
 }
 
-function getStatusType(event) {
-  return event?.status?.type?.state || "";
+function buildUrl(sport, date) {
+  const [category, league] = LEAGUES[sport];
+
+  return `https://site.api.espn.com/apis/site/v2/sports/${category}/${league}/scoreboard?dates=${dateKey(date)}&limit=100`;
 }
 
-function normalizeEvent(event, league) {
+function normalizeEvent(event, sport) {
   const competition = event?.competitions?.[0];
-
   if (!competition) return null;
 
-  const competitors = competition.competitors || [];
+  const teams = competition.competitors || [];
 
-  const home = competitors.find(
-    (team) => team.homeAway === "home"
-  );
+  const home = teams.find(t => t.homeAway === "home");
+  const away = teams.find(t => t.homeAway === "away");
 
-  const away = competitors.find(
-    (team) => team.homeAway === "away"
-  );
-
-  const startTime = event.date
-    ? new Date(event.date)
-    : null;
+  const status = event?.status?.type || {};
 
   return {
-    id: event.id,
-    league,
-    name: event.name || "",
-    shortName: event.shortName || "",
-    startTime,
-    statusType: getStatusType(event),
-    statusDetail:
-      event?.status?.type?.shortDetail ||
-      event?.status?.type?.detail ||
-      "",
-    venue:
-      competition?.venue?.fullName ||
-      "",
+    id: `${sport}-${event.id}`,
+    eventId: event.id,
+    sport,
+    start: new Date(event.date),
+
+    state: status.state || "pre",
+    status:
+      status.shortDetail ||
+      status.detail ||
+      "Scheduled",
+
     home: {
       name:
         home?.team?.displayName ||
         home?.team?.shortDisplayName ||
         "Home",
-      abbreviation:
-        home?.team?.abbreviation ||
-        "",
-      logo:
-        home?.team?.logo ||
-        "",
-      score:
-        home?.score ||
-        ""
+      abbr: home?.team?.abbreviation || "",
+      logo: home?.team?.logo || "",
+      score: home?.score || ""
     },
+
     away: {
       name:
         away?.team?.displayName ||
         away?.team?.shortDisplayName ||
         "Away",
-      abbreviation:
-        away?.team?.abbreviation ||
-        "",
-      logo:
-        away?.team?.logo ||
-        "",
-      score:
-        away?.score ||
-        ""
-    }
+      abbr: away?.team?.abbreviation || "",
+      logo: away?.team?.logo || "",
+      score: away?.score || ""
+    },
+
+    venue: competition?.venue?.fullName || "",
+
+    /* Only use market data if ESPN actually supplies it */
+    odds: competition?.odds?.[0] || null
   };
 }
 
-function classifyGames(games) {
-  const now = Date.now();
-
-  state.upcomingGames = games
-    .filter((game) => {
-      if (!game?.startTime) return false;
-
-      const time = game.startTime.getTime();
-
-      const isFuture =
-        time > now &&
-        game.statusType !== "in" &&
-        game.statusType !== "post";
-
-      return isFuture;
-    })
-    .sort(
-      (a, b) =>
-        a.startTime.getTime() -
-        b.startTime.getTime()
-    );
-
-  state.liveGames = games
-    .filter(
-      (game) =>
-        game.statusType === "in"
-    )
-    .sort(
-      (a, b) =>
-        a.startTime.getTime() -
-        b.startTime.getTime()
-    );
-}
-
-async function fetchLeague(league) {
-  const endpoint = ESPN_ENDPOINTS[league];
-
-  if (!endpoint) return [];
-
+async function fetchDay(sport, date) {
   try {
-    const response = await fetch(endpoint);
+    const res = await fetch(buildUrl(sport, date));
 
-    if (!response.ok) {
-      throw new Error(
-        `${league.toUpperCase()} request failed`
-      );
-    }
+    if (!res.ok) return [];
 
-    const data = await response.json();
+    const data = await res.json();
 
     return (data.events || [])
-      .map((event) =>
-        normalizeEvent(event, league)
-      )
+      .map(e => normalizeEvent(e, sport))
       .filter(Boolean);
 
-  } catch (error) {
-    console.error(
-      `SharpEdge ${league} feed error:`,
-      error
-    );
-
+  } catch (err) {
+    console.error("SharpEdge feed error:", sport, err);
     return [];
   }
 }
 
 async function loadGames() {
-  setLoadingState();
+  showLoading();
 
-  const leagues = Object.keys(ESPN_ENDPOINTS);
+  const jobs = [];
 
-  const results = await Promise.all(
-    leagues.map(fetchLeague)
+  /*
+    -1 = yesterday
+     0 = today
+     1 = tomorrow
+     through +7
+  */
+
+  for (const sport of Object.keys(LEAGUES)) {
+    for (let offset = -1; offset <= 7; offset++) {
+      jobs.push(fetchDay(sport, relativeDate(offset)));
+    }
+  }
+
+  const results = await Promise.all(jobs);
+
+  const unique = new Map();
+
+  results.flat().forEach(game => {
+    unique.set(game.id, game);
+  });
+
+  state.games = [...unique.values()].sort(
+    (a, b) => a.start - b.start
   );
 
-  state.allGames = results.flat();
-
-  classifyGames(state.allGames);
-
-  renderAll();
-
+  renderEverything();
   updateTimestamp();
 }
 
-function setLoadingState() {
-  const upcoming = $("#upcomingGamesGrid");
-  const live = $("#liveGamesGrid");
-  const picks = $("#topPicksGrid");
+/* -------------------------
+   FILTERING
+------------------------- */
 
-  if (upcoming) {
-    upcoming.innerHTML = `
-      <article class="loading-card">
-        Loading future games...
-      </article>
-    `;
-  }
+function sportGames() {
+  if (state.sport === "all") return state.games;
 
-  if (live) {
-    live.innerHTML = `
-      <article class="loading-card">
-        Checking live games...
-      </article>
-    `;
-  }
-
-  if (picks) {
-    picks.innerHTML = `
-      <article class="loading-card">
-        Building future game picks...
-      </article>
-    `;
-  }
-}
-
-function getFilteredUpcoming() {
-  if (state.selectedSport === "all") {
-    return state.upcomingGames;
-  }
-
-  return state.upcomingGames.filter(
-    (game) =>
-      game.league === state.selectedSport
+  return state.games.filter(
+    g => g.sport === state.sport
   );
 }
 
-function getFilteredLive() {
-  if (state.selectedSport === "all") {
-    return state.liveGames;
+function dayGames() {
+  const games = sportGames();
+
+  if (state.day === "yesterday") {
+    return games.filter(g =>
+      sameDay(g.start, relativeDate(-1))
+    );
   }
 
-  return state.liveGames.filter(
-    (game) =>
-      game.league === state.selectedSport
+  if (state.day === "today") {
+    return games.filter(g =>
+      sameDay(g.start, relativeDate(0))
+    );
+  }
+
+  if (state.day === "tomorrow") {
+    return games.filter(g =>
+      sameDay(g.start, relativeDate(1))
+    );
+  }
+
+  return games.filter(g => {
+    const start = g.start.getTime();
+    const now = relativeDate(0).setHours(0,0,0,0);
+    const end = relativeDate(7).setHours(23,59,59,999);
+
+    return start >= now && start <= end;
+  });
+}
+
+function upcomingGames() {
+  const now = Date.now();
+
+  return sportGames().filter(
+    g =>
+      g.state === "pre" &&
+      g.start.getTime() > now
   );
 }
 
-function gameCard(game, live = false) {
+function liveGames() {
+  return sportGames().filter(
+    g => g.state === "in"
+  );
+}
+
+function completedGames() {
+  return sportGames().filter(
+    g => g.state === "post"
+  );
+}
+
+/* -------------------------
+   ODDS
+------------------------- */
+
+function americanToProbability(odds) {
+  const n = Number(odds);
+
+  if (!Number.isFinite(n) || n === 0) {
+    return null;
+  }
+
+  if (n < 0) {
+    return Math.abs(n) /
+      (Math.abs(n) + 100) * 100;
+  }
+
+  return 100 / (n + 100) * 100;
+}
+
+function marketInfo(game) {
+  const o = game.odds;
+
+  if (!o) {
+    return {
+      spread: "Unavailable",
+      total: "Unavailable",
+      moneyline: "Unavailable",
+      favorite: "Unavailable"
+    };
+  }
+
+  const spread =
+    o.details || "Unavailable";
+
+  const total =
+    o.overUnder != null
+      ? `O/U ${o.overUnder}`
+      : "Unavailable";
+
+  /*
+    ESPN odds objects differ by league/feed.
+    Never invent missing moneylines.
+  */
+
+  const homeML =
+    o.homeTeamOdds?.moneyLine ??
+    null;
+
+  const awayML =
+    o.awayTeamOdds?.moneyLine ??
+    null;
+
+  let moneyline = "Unavailable";
+  let favorite = "Unavailable";
+
+  if (homeML != null || awayML != null) {
+    moneyline =
+      `${game.away.abbr || "Away"} ${awayML ?? "—"} • ` +
+      `${game.home.abbr || "Home"} ${homeML ?? "—"}`;
+
+    const homeProb =
+      americanToProbability(homeML);
+
+    const awayProb =
+      americanToProbability(awayML);
+
+    if (homeProb && awayProb) {
+      if (homeProb > awayProb) {
+        favorite =
+          `${game.home.abbr} ${homeProb.toFixed(0)}%`;
+      } else {
+        favorite =
+          `${game.away.abbr} ${awayProb.toFixed(0)}%`;
+      }
+    }
+  }
+
+  return {
+    spread,
+    total,
+    moneyline,
+    favorite
+  };
+}
+
+/* -------------------------
+   GAME CARD
+------------------------- */
+
+function gameCard(game) {
+  const market = marketInfo(game);
+
+  const live = game.state === "in";
+  const final = game.state === "post";
+
   return `
     <article class="game-card">
 
       <div class="game-meta">
-        <span>
-          ${game.league.toUpperCase()}
-        </span>
+        <strong>${game.sport.toUpperCase()}</strong>
 
         <span>
-          ${
-            live
-              ? safeText(
-                  game.statusDetail,
-                  "LIVE"
-                )
-              : formatGameTime(
-                  game.startTime
-                )
-          }
+          ${live ? "🔴 LIVE" : final ? "FINAL" : formatTime(game.start)}
         </span>
       </div>
 
       <div class="game-teams">
 
         <div class="team-row">
-          <strong>
-            ${game.away.name}
-          </strong>
-
-          ${
-            live
-              ? `<strong>${game.away.score}</strong>`
-              : ""
-          }
+          <strong>${game.away.name}</strong>
+          ${live || final
+            ? `<strong>${game.away.score}</strong>`
+            : ""}
         </div>
 
         <div class="team-row">
-          <strong>
-            ${game.home.name}
-          </strong>
-
-          ${
-            live
-              ? `<strong>${game.home.score}</strong>`
-              : ""
-          }
+          <strong>${game.home.name}</strong>
+          ${live || final
+            ? `<strong>${game.home.score}</strong>`
+            : ""}
         </div>
 
       </div>
 
-      <div class="game-time">
-        ${
-          live
-            ? safeText(
-                game.statusDetail,
-                "Live now"
-              )
-            : `Starts ${formatGameTime(
-                game.startTime
-              )}`
-        }
-      </div>
+      <div class="market-board">
 
-    </article>
-  `;
-}
-
-function renderUpcomingGames() {
-  const grid =
-    $("#upcomingGamesGrid");
-
-  if (!grid) return;
-
-  const games =
-    getFilteredUpcoming().slice(0, 6);
-
-  if (!games.length) {
-    grid.innerHTML = `
-      <article class="empty-card">
-        No future games found for this sport right now.
-      </article>
-    `;
-    return;
-  }
-
-  grid.innerHTML =
-    games.map(
-      (game) =>
-        gameCard(game, false)
-    ).join("");
-}
-
-function renderLiveGames() {
-  const grid =
-    $("#liveGamesGrid");
-
-  if (!grid) return;
-
-  const games =
-    getFilteredLive().slice(0, 6);
-
-  if (!games.length) {
-    grid.innerHTML = `
-      <article class="empty-card">
-        No games live right now.
-      </article>
-    `;
-    return;
-  }
-
-  grid.innerHTML =
-    games.map(
-      (game) =>
-        gameCard(game, true)
-    ).join("");
-}
-
-function calculateEdgeScore(game, index) {
-  const base =
-    7.2 +
-    ((index * 7) % 17) / 10;
-
-  return Math.min(
-    9.4,
-    Number(base.toFixed(1))
-  );
-}
-
-function pickCard(game, index) {
-  const edgeScore =
-    calculateEdgeScore(game, index);
-
-  const pick =
-    index % 3 === 0
-      ? `${game.home.abbreviation || game.home.name} ML`
-      : index % 3 === 1
-      ? `${game.away.abbreviation || game.away.name} +3.5`
-      : `${game.home.abbreviation || game.home.name} -2.5`;
-
-  const pickType =
-    index % 3 === 0
-      ? "MONEYLINE"
-      : "SPREAD";
-
-  return `
-    <article class="pick-card">
-
-      <div class="pick-top">
-        <span>
-          ${game.league.toUpperCase()}
-        </span>
-
-        <span>
-          ${formatGameTime(
-            game.startTime
-          )}
-        </span>
-      </div>
-
-      <h4>
-        ${pick}
-      </h4>
-
-      <div class="pick-type">
-        ${pickType}
-      </div>
-
-      <div class="pick-footer">
-
-        <div class="confidence">
-          Confidence:
-          ${
-            edgeScore >= 8
-              ? "High"
-              : "Medium"
-          }
+        <div>
+          <small>MONEYLINE</small>
+          <strong>${market.moneyline}</strong>
         </div>
 
-        <div class="edge-score">
-          ${edgeScore}
+        <div>
+          <small>SPREAD</small>
+          <strong>${market.spread}</strong>
         </div>
+
+        <div>
+          <small>OVER / UNDER</small>
+          <strong>${market.total}</strong>
+        </div>
+
+        <div>
+          <small>MARKET FAVORITE</small>
+          <strong>${market.favorite}</strong>
+        </div>
+
+      </div>
+
+      <div class="game-actions">
+
+        <button onclick="saveFavorite('${game.id}')">
+          ☆ Favorite
+        </button>
+
+        <button onclick="openGame('${game.id}')">
+          Game Details
+        </button>
 
       </div>
 
@@ -430,271 +387,365 @@ function pickCard(game, index) {
   `;
 }
 
-function renderTopPicks() {
-  const grid =
-    $("#topPicksGrid");
+/* -------------------------
+   RENDER
+------------------------- */
 
-  if (!grid) return;
+function renderUpcoming() {
+  const el = $("#upcomingGamesGrid");
+  if (!el) return;
 
-  const games =
-    getFilteredUpcoming().slice(0, 6);
+  const games = dayGames();
 
   if (!games.length) {
-    grid.innerHTML = `
-      <article class="empty-card">
-        No future games available for picks right now.
-      </article>
-    `;
+    el.innerHTML =
+      `<article class="empty-card">
+        No games found for this date.
+      </article>`;
     return;
   }
 
-  grid.innerHTML =
-    games.map(
-      (game, index) =>
-        pickCard(game, index)
-    ).join("");
+  el.innerHTML = games.map(gameCard).join("");
 }
 
-function renderAllUpcoming() {
-  const grid =
-    $("#allPicksGrid");
+function renderLive() {
+  const el = $("#liveGamesGrid");
+  if (!el) return;
 
-  if (!grid) return;
+  const games = liveGames();
 
-  const games =
-    getFilteredUpcoming();
-
-  if (!games.length) {
-    grid.innerHTML = `
-      <article class="empty-card">
-        No future games available right now.
-      </article>
-    `;
-    return;
-  }
-
-  grid.innerHTML =
-    games.map(
-      (game, index) =>
-        pickCard(game, index)
-    ).join("");
+  el.innerHTML = games.length
+    ? games.map(gameCard).join("")
+    : `<article class="empty-card">
+         No games live right now.
+       </article>`;
 }
 
 function renderAllLive() {
-  const grid =
-    $("#allLiveGames");
-
-  if (!grid) return;
-
-  const games =
-    getFilteredLive();
-
-  if (!games.length) {
-    grid.innerHTML = `
-      <article class="empty-card">
-        No games are live right now.
-      </article>
-    `;
-    return;
-  }
-
-  grid.innerHTML =
-    games.map(
-      (game) =>
-        gameCard(game, true)
-    ).join("");
-}
-
-function updateMetrics() {
-  const upcoming =
-    getFilteredUpcoming();
-
-  const topEdgeMetric =
-    $("#topEdgeMetric");
-
-  const pickCountMetric =
-    $("#pickCountMetric");
-
-  if (topEdgeMetric) {
-    topEdgeMetric.textContent =
-      upcoming.length
-        ? "58%"
-        : "--";
-  }
-
-  if (pickCountMetric) {
-    pickCountMetric.textContent =
-      upcoming.length;
-  }
-}
-
-function renderAll() {
-  renderUpcomingGames();
-  renderLiveGames();
-  renderTopPicks();
-  renderAllUpcoming();
-  renderAllLive();
-  updateMetrics();
-}
-
-function updateTimestamp() {
-  const el =
-    $("#lastUpdated");
-
+  const el = $("#allLiveGames");
   if (!el) return;
 
-  const now = new Date();
+  const games = liveGames();
 
-  el.textContent =
-    new Intl.DateTimeFormat(
-      undefined,
-      {
-        hour: "numeric",
-        minute: "2-digit"
-      }
-    ).format(now);
+  el.innerHTML = games.length
+    ? games.map(gameCard).join("")
+    : `<article class="empty-card">
+         No games live right now.
+       </article>`;
 }
 
-function openView(viewName) {
-  $$(".view").forEach((view) => {
-    view.classList.remove("active");
-  });
+/* -------------------------
+   PICKS
+------------------------- */
 
-  const target =
-    $(`#${viewName}View`);
+function renderPicks() {
+  const home = $("#topPicksGrid");
+  const all = $("#allPicksGrid");
 
-  if (target) {
-    target.classList.add("active");
+  const games = upcomingGames();
+
+  /*
+    Do NOT manufacture picks.
+
+    Until legitimate odds/model analysis exists,
+    show future games as analysis opportunities.
+  */
+
+  const html = games.length
+    ? games.slice(0, 12).map(game => {
+
+        const market = marketInfo(game);
+
+        return `
+          <article class="pick-card">
+
+            <div class="pick-top">
+              <span>${game.sport.toUpperCase()}</span>
+              <span>${formatTime(game.start)}</span>
+            </div>
+
+            <h4>
+              ${game.away.abbr || game.away.name}
+              @
+              ${game.home.abbr || game.home.name}
+            </h4>
+
+            <div class="pick-type">
+              SHARPEDGE ANALYSIS
+            </div>
+
+            <div class="market-board">
+
+              <div>
+                <small>ML</small>
+                <strong>${market.moneyline}</strong>
+              </div>
+
+              <div>
+                <small>SPREAD</small>
+                <strong>${market.spread}</strong>
+              </div>
+
+              <div>
+                <small>O/U</small>
+                <strong>${market.total}</strong>
+              </div>
+
+              <div>
+                <small>FAVORITE</small>
+                <strong>${market.favorite}</strong>
+              </div>
+
+            </div>
+
+            <button onclick="openGame('${game.id}')">
+              View Analysis
+            </button>
+
+          </article>
+        `;
+      }).join("")
+    : `<article class="empty-card">
+         No future games available.
+       </article>`;
+
+  if (home) home.innerHTML = html;
+  if (all) all.innerHTML = html;
+}
+
+function renderEverything() {
+  renderUpcoming();
+  renderLive();
+  renderAllLive();
+  renderPicks();
+
+  const count = $("#pickCountMetric");
+
+  if (count) {
+    count.textContent = upcomingGames().length;
+  }
+}
+
+/* -------------------------
+   FAVORITES
+------------------------- */
+
+function saveFavorite(id) {
+  const favorites =
+    JSON.parse(
+      localStorage.getItem("sharpedge-favorites") || "[]"
+    );
+
+  if (!favorites.includes(id)) {
+    favorites.push(id);
   }
 
-  $$("[data-view]").forEach((btn) => {
-    btn.classList.toggle(
-      "active",
-      btn.dataset.view === viewName
-    );
-  });
+  localStorage.setItem(
+    "sharpedge-favorites",
+    JSON.stringify(favorites)
+  );
 
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
+  alert("Saved to SharpEdge Favorites");
 }
 
-function bindNavigation() {
-  $$("[data-view]").forEach((button) => {
-    button.addEventListener(
-      "click",
-      () => {
-        const view =
-          button.dataset.view;
+/* -------------------------
+   GAME DETAILS
+------------------------- */
 
-        if (view) {
-          openView(view);
-        }
-      }
-    );
-  });
-}
+function openGame(id) {
+  const game =
+    state.games.find(g => g.id === id);
 
-function bindSportFilters() {
-  $$(".sport").forEach((button) => {
-    button.addEventListener(
-      "click",
-      () => {
+  if (!game) return;
 
-        state.selectedSport =
-          button.dataset.sport;
+  const market = marketInfo(game);
 
-        $$(".sport").forEach(
-          (item) =>
-            item.classList.remove(
-              "active"
-            )
-        );
-
-        button.classList.add(
-          "active"
-        );
-
-        renderAll();
-      }
-    );
-  });
-}
-
-function bindRefresh() {
-  const button =
-    $("#refreshGames");
-
-  if (!button) return;
-
-  button.addEventListener(
-    "click",
-    async () => {
-
-      button.disabled = true;
-
-      const oldText =
-        button.textContent;
-
-      button.textContent =
-        "REFRESHING...";
-
-      await loadGames();
-
-      button.textContent =
-        oldText;
-
-      button.disabled = false;
-    }
+  alert(
+    `${game.away.name} @ ${game.home.name}\n\n` +
+    `Start: ${formatTime(game.start)}\n` +
+    `Moneyline: ${market.moneyline}\n` +
+    `Spread: ${market.spread}\n` +
+    `Over/Under: ${market.total}\n` +
+    `Favorite: ${market.favorite}\n\n` +
+    `Props: Waiting for verified prop data.\n` +
+    `Starting lineups: will be added when available.`
   );
 }
 
-function setupAuthDialog() {
-  const authButton =
-    $("#authButton");
+/* -------------------------
+   DATE BUTTONS
+------------------------- */
 
-  const dialog =
-    $("#authDialog");
+function addDateControls() {
+  const sports = $(".sports-filter");
 
-  const close =
-    $("#closeAuth");
+  if (!sports) return;
 
-  if (
-    authButton &&
-    dialog
-  ) {
-    authButton.addEventListener(
-      "click",
-      () => {
-        dialog.showModal();
-      }
-    );
+  if ($("#dateFilters")) return;
+
+  const controls =
+    document.createElement("div");
+
+  controls.id = "dateFilters";
+  controls.className = "sports-filter date-filter";
+
+  controls.innerHTML = `
+    <button class="sport day-filter" data-day="yesterday">
+      Yesterday
+    </button>
+
+    <button class="sport day-filter active" data-day="today">
+      Today
+    </button>
+
+    <button class="sport day-filter" data-day="tomorrow">
+      Tomorrow
+    </button>
+
+    <button class="sport day-filter" data-day="week">
+      This Week
+    </button>
+  `;
+
+  sports.after(controls);
+
+  controls.querySelectorAll(".day-filter")
+    .forEach(button => {
+
+      button.addEventListener("click", () => {
+
+        state.day = button.dataset.day;
+
+        controls
+          .querySelectorAll(".day-filter")
+          .forEach(b =>
+            b.classList.remove("active")
+          );
+
+        button.classList.add("active");
+
+        renderUpcoming();
+      });
+    });
+}
+
+/* -------------------------
+   SPORT FILTERS
+------------------------- */
+
+function bindSports() {
+  $$(".sport[data-sport]")
+    .forEach(button => {
+
+      button.addEventListener("click", () => {
+
+        state.sport =
+          button.dataset.sport;
+
+        $$(".sport[data-sport]")
+          .forEach(b =>
+            b.classList.remove("active")
+          );
+
+        button.classList.add("active");
+
+        renderEverything();
+      });
+    });
+}
+
+/* -------------------------
+   NAVIGATION
+------------------------- */
+
+function openView(name) {
+  $$(".view").forEach(v =>
+    v.classList.remove("active")
+  );
+
+  const view = $(`#${name}View`);
+
+  if (view) {
+    view.classList.add("active");
   }
 
-  if (
-    close &&
-    dialog
-  ) {
-    close.addEventListener(
-      "click",
-      () => {
-        dialog.close();
-      }
+  $$("[data-view]").forEach(btn => {
+    btn.classList.toggle(
+      "active",
+      btn.dataset.view === name
     );
+  });
+
+  window.scrollTo(0, 0);
+}
+
+function bindNavigation() {
+  $$("[data-view]").forEach(btn => {
+
+    btn.addEventListener("click", () => {
+      openView(btn.dataset.view);
+    });
+
+  });
+}
+
+/* -------------------------
+   REFRESH
+------------------------- */
+
+function updateTimestamp() {
+  const el = $("#lastUpdated");
+
+  if (el) {
+    el.textContent =
+      new Date().toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit"
+      });
   }
 }
 
-function init() {
-  bindNavigation();
-  bindSportFilters();
-  bindRefresh();
-  setupAuthDialog();
+function showLoading() {
+  const el = $("#upcomingGamesGrid");
 
-  loadGames();
+  if (el) {
+    el.innerHTML =
+      `<article class="loading-card">
+         Loading SharpEdge game board...
+       </article>`;
+  }
+}
+
+function bindRefresh() {
+  const btn = $("#refreshGames");
+
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = "REFRESHING...";
+
+    await loadGames();
+
+    btn.disabled = false;
+    btn.textContent = "REFRESH GAMES ↻";
+  });
+}
+
+/* -------------------------
+   START
+------------------------- */
+
+async function initSharpEdge() {
+  bindNavigation();
+  bindSports();
+  bindRefresh();
+  addDateControls();
+
+  await loadGames();
 }
 
 document.addEventListener(
   "DOMContentLoaded",
-  init
+  initSharpEdge
 );
