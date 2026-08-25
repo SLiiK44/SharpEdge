@@ -128,3 +128,49 @@ a {
   min-width: 24px;
   height: 24px;
   border
+/* MOBILE NAV FIX */
+
+@media (max-width: 950px) {
+  .sidebar {
+    display: none !important;
+  }
+
+  .app-shell {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+
+  .topbar {
+    width: 100%;
+  }
+
+  .quick-nav {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .view {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .hero-elite,
+  .metric-grid,
+  .games-grid,
+  .dashboard-bottom,
+  .picks-board,
+  .parlay-board,
+  .odds-board,
+  .analysis-board,
+  .leaders-board,
+  .saved-board {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+}
