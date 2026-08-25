@@ -47,7 +47,7 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(
-      `${config.base}/${config.schedule}`,
+      `${config.base}/${config.schedule}/2026`,
       {
         headers: {
           "Ocp-Apim-Subscription-Key": apiKey
