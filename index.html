@@ -543,35 +543,11 @@ button{cursor:pointer;font:inherit}
 
   <div class="grid" id="gameGrid">
 
-    <div class="card sport-card" data-sport="NFL">
-      <div class="row">
-        <span>NFL</span>
-        <span class="green">LIVE</span>
-      </div>
-      <div class="row"><b>Texans</b><b>17</b></div>
-      <div class="row"><b>Chiefs</b><b>14</b></div>
-      <div class="gold">Chiefs 61% favorite</div>
-    </div>
-
-    <div class="card sport-card" data-sport="NBA">
-      <div class="row">
-        <span>NBA</span>
-        <span class="green">LIVE</span>
-      </div>
-      <div class="row"><b>Lakers</b><b>28</b></div>
-      <div class="row"><b>Warriors</b><b>24</b></div>
-      <div class="gold">Lakers 56% favorite</div>
-    </div>
-
-    <div class="card sport-card" data-sport="MLB">
-      <div class="row">
-        <span>MLB</span>
-        <span class="green">LIVE</span>
-      </div>
-      <div class="row"><b>Yankees</b><b>3</b></div>
-      <div class="row"><b>Red Sox</b><b>1</b></div>
-      <div class="gold">Yankees 64% favorite</div>
-    </div>
+  
+  <div class="card">
+    <b class="gold">Loading real games...</b>
+    <p class="muted">Connecting to SharpEdge live feed.</p>
+  </div>
 
   </div>
 </section>
@@ -790,6 +766,317 @@ sportButtons.forEach(btn=>{
     });
   });
 });
+<script>
+const screens = document.querySelectorAll('.screen');
+const pageButtons = document.querySelectorAll('[data-page]');
+const sportButtons = document.querySelectorAll('[data-sport]');
+const gameGrid = document.getElementById('gameGrid');
+
+let currentSport = 'all';
+
+const sportKeys = {
+  NFL: 'americanfootball_nfl',
+  NBA: 'basketball_nba',
+  MLB: 'baseball_mlb',
+  NHL: 'icehockey_nhl',
+  NCAAF: 'americanfootball_ncaaf'
+};
+
+function openPage(page) {
+  screens.forEach(screen => {
+    screen.classList.toggle('active', screen.id === page);
+  });
+
+  pageButtons.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.page === page);
+  });
+
+  if (page === 'live') {
+    loadGames(currentSport);
+  }
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+pageButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    openPage(btn.dataset.page);
+  });
+});
+
+function currentTime() {
+  return new Date().toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
+function americanToProbability(odds) {
+  if (typeof odds !== 'number') return null;
+
+  if (odds > 0) {
+    return 100 / (odds + 100);
+  }
+
+  return Math.abs(odds) / (Math.abs(odds) + 100);
+}
+
+function normalizedPercentages(outcomes) {
+  if (!outcomes || outcomes.length < 2) return {};
+
+  const raw = outcomes.map(item => ({
+    name: item.name,
+    probability: americanToProbability(item.price)
+  }));
+
+  const total = raw.reduce(
+    (sum, item) => sum + (item.probability || 0),
+    0
+  );
+
+  const result = {};
+
+  raw.forEach(item => {
+    if (item.probability && total) {
+      result[item.name] =
+        Math.round((item.probability / total) * 100);
+    }
+  });
+
+  return result;
+}
+
+function formatOdds(value) {
+  if (value === undefined || value === null) return '—';
+  return value > 0 ? `+${value}` : value;
+}
+
+function formatGameTime(dateString) {
+  const date = new Date(dateString);
+
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+async function fetchSport(sport) {
+  const key = sportKeys[sport];
+
+  const response = await fetch(
+    `/api/games?sport=${encodeURIComponent(key)}`
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.details ||
+      data.error ||
+      'Unable to load games'
+    );
+  }
+
+  return data.games || [];
+}
+
+async function loadGames(sport = 'all') {
+  currentSport = sport;
+
+  gameGrid.innerHTML = `
+    <div class="card">
+      <b class="gold">Loading real sportsbook data...</b>
+      <p class="muted">Connecting to SharpEdge live feed.</p>
+    </div>
+  `;
+
+  try {
+    let games = [];
+
+    if (sport === 'all') {
+      const results = await Promise.allSettled(
+        Object.keys(sportKeys).map(fetchSport)
+      );
+
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          games.push(...result.value);
+        }
+      });
+    } else {
+      games = await fetchSport(sport);
+    }
+
+    games.sort(
+      (a, b) =>
+        new Date(a.startTime) -
+        new Date(b.startTime)
+    );
+
+    renderGames(games);
+
+    document.getElementById('updatedLive').textContent =
+      'Updated ' + currentTime();
+
+  } catch (error) {
+    console.error('SharpEdge load error:', error);
+
+    gameGrid.innerHTML = `
+      <div class="card">
+        <b style="color:#ff6b6b">
+          Unable to load sportsbook data
+        </b>
+        <p class="muted">${escapeHtml(error.message)}</p>
+      </div>
+    `;
+  }
+}
+
+function renderGames(games) {
+  if (!games.length) {
+    gameGrid.innerHTML = `
+      <div class="card">
+        <b>No games currently available.</b>
+        <p class="muted">Try another league or refresh later.</p>
+      </div>
+    `;
+    return;
+  }
+
+  gameGrid.innerHTML = games.map(game => {
+    const probabilities =
+      normalizedPercentages(game.moneyline);
+
+    const homeML = game.moneyline?.find(
+      item => item.name === game.homeTeam
+    );
+
+    const awayML = game.moneyline?.find(
+      item => item.name === game.awayTeam
+    );
+
+    const homeSpread = game.spread?.find(
+      item => item.name === game.homeTeam
+    );
+
+    const awaySpread = game.spread?.find(
+      item => item.name === game.awayTeam
+    );
+
+    const over = game.total?.find(
+      item => item.name === 'Over'
+    );
+
+    const under = game.total?.find(
+      item => item.name === 'Under'
+    );
+
+    const homePct = probabilities[game.homeTeam];
+    const awayPct = probabilities[game.awayTeam];
+
+    let favoriteText = 'Favorite unavailable';
+
+    if (homePct && awayPct) {
+      favoriteText =
+        homePct >= awayPct
+          ? `${game.homeTeam} ${homePct}% favorite`
+          : `${game.awayTeam} ${awayPct}% favorite`;
+    }
+
+    return `
+      <div class="card">
+        <div class="row">
+          <span class="gold">${escapeHtml(game.league)}</span>
+          <span class="muted">${formatGameTime(game.startTime)}</span>
+        </div>
+
+        <h3>
+          ${escapeHtml(game.awayTeam)}
+          <span class="muted">@</span>
+          ${escapeHtml(game.homeTeam)}
+        </h3>
+
+        <div class="row">
+          <span>${escapeHtml(game.awayTeam)} ML</span>
+          <b>${formatOdds(awayML?.price)}</b>
+        </div>
+
+        <div class="row">
+          <span>${escapeHtml(game.homeTeam)} ML</span>
+          <b>${formatOdds(homeML?.price)}</b>
+        </div>
+
+        <div class="row">
+          <span>${escapeHtml(game.awayTeam)} Spread</span>
+          <b>
+            ${awaySpread?.point ?? '—'}
+            (${formatOdds(awaySpread?.price)})
+          </b>
+        </div>
+
+        <div class="row">
+          <span>${escapeHtml(game.homeTeam)} Spread</span>
+          <b>
+            ${homeSpread?.point ?? '—'}
+            (${formatOdds(homeSpread?.price)})
+          </b>
+        </div>
+
+        <div class="row">
+          <span>Total</span>
+          <b>
+            O ${over?.point ?? '—'} /
+            U ${under?.point ?? '—'}
+          </b>
+        </div>
+
+        <div class="gold" style="margin-top:12px">
+          ${escapeHtml(favoriteText)}
+        </div>
+
+        <div class="muted" style="margin-top:6px">
+          Sportsbook: ${escapeHtml(game.bookmaker)}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+sportButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    sportButtons.forEach(button =>
+      button.classList.remove('active')
+    );
+
+    btn.classList.add('active');
+
+    loadGames(btn.dataset.sport);
+  });
+});
+
+document
+  .getElementById('refreshLive')
+  .addEventListener('click', () => {
+    loadGames(currentSport);
+  });
+
+document
+  .getElementById('refreshHome')
+  .addEventListener('click', () => {
+    document.getElementById('updatedHome').textContent =
+      '● Updated ' + currentTime();
+  });
 </script>
 
 </body>
