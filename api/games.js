@@ -29,45 +29,53 @@ export default async function handler(req, res) {
       });
     }
 
-    const games = await response.json();
+    const data = await response.json();
 
-    const formattedGames = games.map(game => {
-      const bookmaker = game.bookmakers?.[0];
+    const now = new Date();
 
-      const moneyline =
-        bookmaker?.markets?.find(m => m.key === "h2h") || null;
+    const upcomingGames = data
+      .filter(game => new Date(game.commence_time) > now)
+      .sort(
+        (a, b) =>
+          new Date(a.commence_time) - new Date(b.commence_time)
+      )
+      .map(game => {
+        const bookmaker = game.bookmakers?.[0];
 
-      const spread =
-        bookmaker?.markets?.find(m => m.key === "spreads") || null;
+        const moneyline =
+          bookmaker?.markets?.find(m => m.key === "h2h");
 
-      const total =
-        bookmaker?.markets?.find(m => m.key === "totals") || null;
+        const spread =
+          bookmaker?.markets?.find(m => m.key === "spreads");
 
-      return {
-        id: game.id,
-        sport: game.sport_key,
-        league: game.sport_title,
-        startTime: game.commence_time,
+        const total =
+          bookmaker?.markets?.find(m => m.key === "totals");
 
-        homeTeam: game.home_team,
-        awayTeam: game.away_team,
+        return {
+          id: game.id,
+          sport: game.sport_key,
+          league: game.sport_title,
+          startTime: game.commence_time,
 
-        moneyline: moneyline?.outcomes || [],
-        spread: spread?.outcomes || [],
-        total: total?.outcomes || [],
+          homeTeam: game.home_team,
+          awayTeam: game.away_team,
 
-        bookmaker: bookmaker?.title || "Sportsbook"
-      };
-    });
+          moneyline: moneyline?.outcomes || [],
+          spread: spread?.outcomes || [],
+          total: total?.outcomes || [],
+
+          bookmaker: bookmaker?.title || "Sportsbook"
+        };
+      });
 
     return res.status(200).json({
       success: true,
-      count: formattedGames.length,
-      games: formattedGames
+      count: upcomingGames.length,
+      games: upcomingGames
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Upcoming games error:", error);
 
     return res.status(500).json({
       error: "SharpEdge server error",
