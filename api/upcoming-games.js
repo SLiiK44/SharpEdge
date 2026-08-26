@@ -1,109 +1,164 @@
 export default async function handler(req, res) {
   if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const apiKey = process.env.SPORTSDATAIO_API_KEY;
-
-  if (!apiKey) {
-    return res.status(500).json({
-      error: "SPORTSDATAIO_API_KEY is not configured"
+    return res.status(405).json({
+      error: "Method not allowed"
     });
   }
 
-  const league = String(req.query.league || "nba").toLowerCase();
+  const apiKey = process.env.SPORTSGAMEODDS_API_KEY;
 
-  const leagues = {
-    nba: {
-      sport: "basketball",
-      competition: "usa-1"
-    }
-  };
+  if (!apiKey) {
+    return res.status(500).json({
+      error: "SPORTSGAMEODDS_API_KEY is not configured"
+    });
+  }
 
-  const config = leagues[league];
+  const league = String(
+    req.query.league || "MLB"
+  ).toUpperCase();
 
-  if (!config) {
+  const range = String(
+    req.query.range || "today"
+  ).toLowerCase();
+
+  const supported = [
+    "NFL",
+    "NBA",
+    "MLB",
+    "NHL",
+    "NCAAF",
+    "NCAAB"
+  ];
+
+  if (!supported.includes(league)) {
     return res.status(400).json({
       error: "Unsupported league",
-      supported: ["nba"]
+      supported
+    });
+  }
+
+  function startOfDay(offset = 0) {
+    const d = new Date();
+
+    d.setDate(d.getDate() + offset);
+
+    d.setHours(0, 0, 0, 0);
+
+    return d;
+  }
+
+  function endOfDay(offset = 0) {
+    const d = new Date();
+
+    d.setDate(d.getDate() + offset);
+
+    d.setHours(23, 59, 59, 999);
+
+    return d;
+  }
+
+  let startsAfter;
+  let startsBefore;
+
+  if (range === "yesterday") {
+    startsAfter = startOfDay(-1);
+    startsBefore = endOfDay(-1);
+  }
+
+  else if (range === "today") {
+    startsAfter = startOfDay(0);
+    startsBefore = endOfDay(0);
+  }
+
+  else if (range === "tomorrow") {
+    startsAfter = startOfDay(1);
+    startsBefore = endOfDay(1);
+  }
+
+  else if (range === "week") {
+    startsAfter = startOfDay(-1);
+    startsBefore = endOfDay(7);
+  }
+
+  else {
+    return res.status(400).json({
+      error: "Unsupported range",
+      supported: [
+        "yesterday",
+        "today",
+        "tomorrow",
+        "week"
+      ]
     });
   }
 
   try {
-    // Search today + next 7 days
-    const dates = [];
-
-    for (let i = 0; i < 8; i++) {
-      const date = new Date();
-      date.setUTCDate(date.getUTCDate() + i);
-      dates.push(date.toISOString().slice(0, 10));
-    }
-
-    const requests = dates.map(async (date) => {
-      const url =
-        `https://global.sportsdata.io/${config.sport}/${config.competition}` +
-        `/event-schedules/by-date/${date}`;
-
-      const response = await fetch(url, {
-        headers: {
-          "Ocp-Apim-Subscription-Key": apiKey
-        }
-      });
-
-      const text = await response.text();
-
-      if (!response.ok) {
-        throw new Error(
-          `SportsDataIO ${response.status}: ${text}`
-        );
-      }
-
-      return JSON.parse(text);
+    const params = new URLSearchParams({
+      leagueID: league,
+      startsAfter: startsAfter.toISOString(),
+      startsBefore: startsBefore.toISOString(),
+      limit: "100",
+      includeOpposingOdds: "true",
+      includeAltLines: "true"
     });
 
-    const results = await Promise.all(requests);
-    const events = results.flat();
+    const response = await fetch(
+      `https://api.sportsgameodds.com/v2/events?${params.toString()}`,
+      {
+        headers: {
+          "x-api-key": apiKey
+        }
+      }
+    );
 
-    const games = events
-      .filter(event => event.StartDate)
-      .sort(
-        (a, b) =>
-          new Date(a.StartDate) - new Date(b.StartDate)
-      )
-      .map(event => ({
-        id: event.GlobalSportsEventId,
-        name: event.Name,
-        startTime: event.StartDate,
-        status: event.Status,
-        statusDescription: event.StatusDescription,
+    const text = await response.text();
 
-        venue: event.Venue?.Name || null,
+    let data;
 
-        teams:
-          event.Participants?.map(team => ({
-            id: team.GlobalSportsParticipantId,
-            name: team.Name,
-            type: team.Type
-          })) || []
-      }));
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = {
+        success: false,
+        error: text
+      };
+    }
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: "SportsGameOdds request failed",
+        league,
+        details: data
+      });
+    }
+
+    const events = Array.isArray(data.data)
+      ? data.data
+      : [];
 
     res.setHeader(
       "Cache-Control",
-      "s-maxage=300, stale-while-revalidate=600"
+      "s-maxage=60, stale-while-revalidate=180"
     );
 
     return res.status(200).json({
       success: true,
-      league: league.toUpperCase(),
-      count: games.length,
-      games
+      source: "SportsGameOdds",
+      league,
+      range,
+      count: events.length,
+      events,
+      nextCursor: data.nextCursor || null
     });
 
   } catch (error) {
-    console.error("Upcoming games error:", error);
+    console.error(
+      "SharpEdge SportsGameOdds error:",
+      error
+    );
 
     return res.status(500).json({
-      error: "Unable to load upcoming games",
+      error: "Unable to load sports data",
       details: error.message
     });
   }
