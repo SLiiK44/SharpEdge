@@ -1,0 +1,1 @@
+export default function handler(req,res){res.status(200).json({ok:true,service:'sharpedge',sportsProviderConfigured:Boolean(process.env.SPORTSGAMEODDS_API_KEY),stripeConfigured:Boolean(process.env.STRIPE_SECRET_KEY&&process.env.STRIPE_PRICE_ID),supabaseConfigured:Boolean(process.env.SUPABASE_URL&&process.env.SUPABASE_ANON_KEY)})}
